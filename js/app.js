@@ -2,8 +2,10 @@
     var map;
     //Create array of markers
     var markers = [];
-
-    var styles = [
+ 
+    function initMap() {
+         //Create styles array
+            var styles = [
           {
             featureType: 'water',
             stylers: [
@@ -70,26 +72,23 @@
           }
         ];
 
-  
-        // Constructor creates a new map - only center and zoom are required.
-     function initMap() {
-       
+       // Constructor creates a new map - only center and zoom are required.
        map = new google.maps.Map(document.getElementById("map"), {
            center: {lat: 40.740386, lng: -73.920872},
-           zoom: 18,
+           zoom: 13,
            styles: styles,
            mapTypeControl: false//user cannot change map type to satellite roads terrain etc
        });
-
+        //better to use a database served up remotely
        var locations = [
-       {title: 'E 72nd St., Manhattan', location: {lat: 40.767549, lng: -73.954709}},
-       {title: '44th St., Woodside, Queens', location: {lat: 40.740386, lng: -73.920872}},
-       {title: '41st St. Sunnyside, Queens', location: {lat: 40.746774, lng: -73.923021}},
-       {title: '103rd St. Corona, Queens', location: {lat: 40.74978, lng: -73.862646}},
-       {title: '117th St., Queens', location: {lat: 40.758247, lng: -73.862267 }},
-       {title: '20 Henry St., Brooklyn Heights, Brooklyn', location: {lat: 40.700203, lng: -73.991933}},
-       {title: 'Avenue J, Midwood, Brooklyn', location: {lat: 40.624991, lng: -73.961067}},
-       {title: '190 St. & Davidson, Bronx', location: {lat: 40.865379, lng: -73.900579}}
+       {title: '430 E 72nd St., Manhattan', location: {lat:  40.7671278, lng: -73.9544168}, heading: 207},
+       {title: '44th St., Woodside, Queens', location: {lat: 40.740386, lng: -73.920872}, heading: 0},
+       {title: '41st St. Sunnyside, Queens', location: {lat: 40.746774, lng: -73.923021}, heading: 0},
+       {title: '103rd St. Corona, Queens', location: {lat: 40.74978, lng: -73.862646}, heading: 0},
+       {title: '117th St., Queens', location: {lat: 40.758247, lng: -73.862267 }, heading: 0},
+       {title: '20 Henry St., Brooklyn Heights, Brooklyn', location: {lat: 40.700203, lng: -73.991933}, heading: 0},
+       {title: 'Avenue J, Midwood, Brooklyn', location: {lat: 40.624991, lng: -73.961067}, heading: 0},
+       {title: '190 St. & Davidson, Bronx', location: {lat: 40.865379, lng: -73.900579}, heading: 0}
        ];
 
        var largeInfowindow = new google.maps.InfoWindow();
@@ -102,9 +101,10 @@
 
        //the loop takes the location array and ceates and array of markers on initilizing
        for (var i = 0; i <locations.length; i++) {
-           //get postion from the location array
+           //get position from the location array
            var position = locations[i].location;
            var title = locations[i].title;
+           var heading = locations[i].heading;
            //create one marker per location and put the in the markers array
            var marker = new google.maps.Marker({
                //map: map,
@@ -138,20 +138,55 @@
        document.getElementById('show-places').addEventListener('click', showPlaces);
        document.getElementById('hide-places').addEventListener('click', hidePlaces);
      }
-       //Populate the infowindow when the marker is clicked
-       function populateInfoWindow(marker, infowindow) {
-           //check to make sure the info window is not already openend on this marker
-           if (infowindow.marker != marker) {
-               infowindow.marker = marker;
-               infowindow.setContent('<div>' + marker.title +' '+ marker.position +'<div>');
-               infowindow.open(map, marker);
+     
+//Populate the infowindow when the marker is clicked
+     function populateInfoWindow(marker, infowindow) {
+        //check to make sure the info window is not already open on this marker
+        if (infowindow.marker != marker) {
+           //Clear the infowindow content to give the streetview time to load.
+           infowindow.setContent('');
+           infowindow.marker = marker;
+           //infowindow.open(map, marker);
                
-               //Make sure the marker property is cleared if the infowindow is closed
-               infowindow.addListener('closeclick', function(){
-                   infowindow.setMarker(null);
-               });
-           }
-       }
+           //Make sure the marker property is cleared if the infowindow is closed
+           infowindow.addListener('closeclick', function(){
+             infowindow.marker = null;
+             //infowindow.setMarker(null);
+            });
+            var streetViewService = new google.maps.StreetViewService();
+            var radius = 50;
+
+            // In case the status is OK, which means the panoramic was found, compute the
+            // position of the streetview image, then calculate the heading, then get a
+            // panorama from that and set the options
+            
+          function getStreetView(data, status) {
+            if (status == google.maps.StreetViewStatus.OK) {
+              var nearStreetViewLocation = data.location.latLng;
+              var heading = google.maps.geometry.spherical.computeHeading(
+                nearStreetViewLocation, marker.position);
+                infowindow.setContent('<div>' + marker.title + '</div><div id="pano"></div>');
+                var panoramaOptions = {
+                  position: nearStreetViewLocation,
+                  pov: {
+                    heading: heading,
+                    pitch: 30
+                  }
+                };
+              var panorama = new google.maps.StreetViewPanorama(
+                document.getElementById('pano'), panoramaOptions);
+            } else {
+              infowindow.setContent('<div>' + marker.title + '</div>' +
+                '<div>No Street View Found</div>');
+            }
+          }
+          // Use streetview service to get the closest streetview image within
+          // 50 meters of the markers position
+         streetViewService.getPanoramaByLocation(marker.position, radius, getStreetView);
+          // Open the infowindow on the correct marker.
+         infowindow.open(map, marker);
+        }
+      }
 
        function showPlaces() {
            var bounds = new google.maps.LatLngBounds();
@@ -180,16 +215,3 @@
            new google.maps.Size(21, 34));
          return markerImage;
        }
-
-//        var woodside = {lat: 40.740386, lng: -73.920872
-//        var firstNYC = new google.maps.Marker({
-//            position: woodside,
-//            map: map,
-//            title: "Woodside, Queens"
-//        });
-//        var infowindow = new google.maps.InfoWindow({
-//            content: '47-31 44th Street, Woodside, New York 11377'
-//        });
-//        firstNYC.addListener('click', function() {
-//            infowindow.open(map, firstNYC);//if not 'marker' use a position property so it has a place to open
-//        });
