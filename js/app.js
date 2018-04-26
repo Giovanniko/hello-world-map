@@ -2,6 +2,9 @@
     var map;
     //Create array of markers
     var markers = [];
+
+    //global polygon variable ensures only ONE polygon is drawn
+    var polygon = null;
  
     function initMap() {
          //Create styles array
@@ -91,13 +94,25 @@
        {title: '190 St. & Davidson, Bronx', location: {lat: 40.865379, lng: -73.900579}, heading: 0}
        ];
 
-       var largeInfowindow = new google.maps.InfoWindow();
+      var largeInfowindow = new google.maps.InfoWindow();
         //var bounds = new google.maps.LatLngBounds();moved to showplaces function
+        
+      //Initialize the drawing manager:  
+      var drawingManager = new google.maps.drawing.DrawingManager({
+        drawingMode: google.maps.drawing.OverlayType.POLYGON,
+        drawingControl: true,
+        drawingControlOptions: {
+            position: google.maps.ControlPosition.TOP_LEFT,
+            drawingModes: [
+                google.maps.drawing.OverlayType.POLYGON
+                ]
+        }
+      });
 
         //Styles the markers, default marker
-        var defaultIcon = makeMarkerIcon('0091ff');
+      var defaultIcon = makeMarkerIcon('0091ff');
 
-        var highlightedIcon = makeMarkerIcon('FFFF24');
+      var highlightedIcon = makeMarkerIcon('FFFF24');
 
        //the loop takes the location array and ceates and array of markers on initilizing
        for (var i = 0; i <locations.length; i++) {
@@ -137,6 +152,33 @@
 
        document.getElementById('show-places').addEventListener('click', showPlaces);
        document.getElementById('hide-places').addEventListener('click', hidePlaces);
+        
+       document.getElementById('toggle-drawing').addEventListener('click', function() {
+           toggleDrawing(drawingManager);
+       });
+        
+        // Add an event listener so that the polygon is captured,  call the
+        // searchWithinPolygon function. This will show the markers in the polygon,
+        // and hide any outside of it.
+        drawingManager.addListener('overlaycomplete', function(event) {
+          // First, check if there is an existing polygon.
+          // If there is, get rid of it and remove the markers
+          if (polygon) {
+            polygon.setMap(null);
+            hidePlaces(markers);
+          }
+          // Switching the drawing mode to the HAND (i.e., no longer drawing).
+          drawingManager.setDrawingMode(null);
+          // Creating a new editable polygon from the overlay.
+          polygon = event.overlay;
+          polygon.setEditable(true);
+          // Searching within the polygon.
+          searchWithinPolygon();
+          // Make sure the search is re-done if the poly is changed.
+          polygon.getPath().addListener('set_at', searchWithinPolygon);
+          polygon.getPath().addListener('insert_at', searchWithinPolygon);
+        });    
+        
      }
      
 //Populate the infowindow when the marker is clicked
@@ -215,3 +257,29 @@
            new google.maps.Size(21, 34));
          return markerImage;
        }
+    
+    //function that hides and shows the drawing options
+    function toggleDrawing(drawingManger) {
+        if (drawingManger.map) {
+            drawingManger.setMap(null);
+            //if the user drew something, get rid of the polygon
+            if (polygon) {
+                polygon.setMap(null);
+            }
+        } else {
+            drawingManger.setMap(map);
+        }
+    }
+
+      // This function hides all markers outside the polygon,
+      // and shows only the ones within it. This is so that the
+      // user can specify an exact area of search.
+      function searchWithinPolygon() {
+        for (var i = 0; i < markers.length; i++) {
+          if (google.maps.geometry.poly.containsLocation(markers[i].position, polygon)) {
+            markers[i].setMap(map);
+          } else {
+            markers[i].setMap(null);
+          }
+        }
+      }

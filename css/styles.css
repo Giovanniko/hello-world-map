@@ -22,8 +22,8 @@ h1 {
   text-align: center;
 }
 
-#hide-listings,
-#show-listings {
+#hide-places,
+#show-places {
   width: 48%;
 }
 
@@ -60,4 +60,10 @@ hr {
 
 .text {
   font-size: 12px;
+}
+
+#toggle-drawing {
+    width: 27%;
+    position: relative;
+    margin-left: 10px;
 }
