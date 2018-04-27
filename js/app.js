@@ -157,6 +157,11 @@
        document.getElementById('toggle-drawing').addEventListener('click', function() {
            toggleDrawing(drawingManager);
        });
+
+       document.getElementById('zoom-to-area').addEventListener('click', function() {
+           zoomToArea();
+       });
+       
         
         // Add an event listener so that the polygon is captured,  call the
         // searchWithinPolygon function. This will show the markers in the polygon,
@@ -289,3 +294,32 @@
           }
         }
       }
+
+       function zoomToArea() {
+           //initialize the geocoder
+           var geocoder = new google.maps.Geocoder();
+           //get the address entered by user
+           var address = document.getElementById('zoom-to-area-text').value;
+           //check address is not blank
+           if (address =='') {
+               window.alert('You must enter an area, or address.');
+           } else {
+               //geocode the address and get the center and center the maps
+               geocoder.geocode(
+                 {address: address,
+                  componentRestrictions: {locality: 'New York'}
+                 }, function(results, status) {
+                     if (status == google.maps.GeocoderStatus.OK){
+                         map.setCenter(results[0].geometry.location);
+                         document.getElementById('results').innerHTML = results[0].formatted_Address;
+                         document.getElementById('results').innerHTML = results[0].geometry.location;
+                         map.setZoom(15);
+                     } else {
+                       window.alert ('We could not find that location - try enter a more' +
+                       'specific place');
+                     }
+                 });
+             }
+           }
+
+//elevation request: https://maps.googleapis.com/maps/api/elevation/json?locations=34.213171,-118.571022&key=AIzaSyAMrVj6I_6cXo7DF5ienNCjvj1seozxvbU
