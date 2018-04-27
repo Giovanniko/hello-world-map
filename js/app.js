@@ -146,6 +146,7 @@
            marker.addListener('mouseout', function() {
                this.setIcon(defaultIcon);
            });
+
        }
 
         //map.fitBounds(bounds);moved into showplaces function
@@ -172,17 +173,22 @@
           // Creating a new editable polygon from the overlay.
           polygon = event.overlay;
           polygon.setEditable(true);
+          //calculate area of polygon and send to screen
+          var area = google.maps.geometry.spherical.computeArea(polygon.getPath());
+          window.alert(area + "SQ METERS");
           // Searching within the polygon.
           searchWithinPolygon();
           // Make sure the search is re-done if the poly is changed.
           polygon.getPath().addListener('set_at', searchWithinPolygon);
           polygon.getPath().addListener('insert_at', searchWithinPolygon);
-        });    
-        
+          
+        });
+      
      }
+
      
-//Populate the infowindow when the marker is clicked
-     function populateInfoWindow(marker, infowindow) {
+    //Populate the infowindow when the marker is clicked
+    function populateInfoWindow(marker, infowindow) {
         //check to make sure the info window is not already open on this marker
         if (infowindow.marker != marker) {
            //Clear the infowindow content to give the streetview time to load.
