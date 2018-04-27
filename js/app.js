@@ -326,40 +326,45 @@
              }
            }
 
-       function searchWithinTime () {
-
-           var distanceMatixService = new google.maps.DistanceMatrixService;
-           var address = document.getElementById('search-within-time-text').value;
-
-           if (address =='') {
-               window.alert('You must enter and address.');
-           } else {
-             hidePlaces();
-
-             var origins = [];
-             for (var i = 0; i < markers.length; i++) {
-                 origins[i] = markers[i].position;
-             }
-             var destination = address;
-             var mode = document.getElementById('mode').value;
-
-             distanceMatixService.getDistanceMatrix({
-                 origins: origins,
-                 destinations: [destination],
-                 travelMode: google.maps.TravelMode[mode],
-                 unitSystem: google.maps.UnitSystem.IMPERIAL,
-             }, function(response, status) {
-                 if (status !== google.maps.DistanceMatrixService.OK) {
-                     window.alert('Error was: ' + status);
-                 } else {
-                     displayMarkerWithinTime(response);
-                 }
-                 
-             });
-           }
+      // This function allows the user to input a desired travel time, in
+      // minutes, and a travel mode, and a location - and only show the listings
+      // that are within that travel time (via that travel mode) of the location
+      function searchWithinTime() {
+        // Initialize the distance matrix service.
+        var distanceMatrixService = new google.maps.DistanceMatrixService;
+        var address = document.getElementById('search-within-time-text').value;
+        // Check to make sure the place entered isn't blank.
+        if (address == '') {
+          window.alert('You must enter an address.');
+        } else {
+          hidePlaces();
+          // Use the distance matrix service to calculate the duration of the
+          // routes between all our markers, and the destination address entered
+          // by the user. Then put all the origins into an origin matrix.
+          var origins = [];
+          for (var i = 0; i < markers.length; i++) {
+            origins[i] = markers[i].position;
+          }
+          var destination = address;
+          var mode = document.getElementById('mode').value;
+          // Now that both the origins and destination are defined, get all the
+          // info for the distances between them.
+          distanceMatrixService.getDistanceMatrix({
+            origins: origins,
+            destinations: [destination],
+            travelMode: google.maps.TravelMode[mode],
+            unitSystem: google.maps.UnitSystem.IMPERIAL,
+          }, function(response, status) {
+            if (status !== google.maps.DistanceMatrixStatus.OK) {
+              window.alert('Error was: ' + status);
+            } else {
+              displayMarkersWithinTime(response);
+            }
+          });
         }
+      }
 
-              // This function will go through each of the results, and,
+       // This function will go through each of the results, and,
       // if the distance is LESS than the value in the picker, show it on the map.
       function displayMarkersWithinTime(response) {
         var maxDuration = document.getElementById('max-duration').value;
@@ -389,7 +394,9 @@
                 // Create a mini infowindow to open immediately and contain the
                 // distance and duration
                 var infowindow = new google.maps.InfoWindow({
-                  content: durationText + ' away, ' + distanceText
+                  content: durationText + ' away, ' + distanceText +
+                    '<div><input type=\"button\" value=\"View Route\" onclick =' +
+                    '\"displayDirections(&quot;' + origins[i] + '&quot;);\"></input></div>'
                 });
                 infowindow.open(map, markers[i]);
                 // Put this in so that this small window closes if the user clicks
@@ -405,7 +412,44 @@
         if (!atLeastOne) {
           window.alert('We could not find any locations within that distance!');
         }
-      }  
+      }
+
+      // This function is in response to the user selecting "show route" on one
+      // of the markers within the calculated distance. This will display the route
+      // on the map.
+      function displayDirections(origin) {
+        hidePlaces();
+        var directionsService = new google.maps.DirectionsService;
+        // Get the destination address from the user entered value.
+        var destinationAddress =
+            document.getElementById('search-within-time-text').value;
+        // Get mode again from the user entered value.
+        var mode = document.getElementById('mode').value;
+        directionsService.route({
+          // The origin is the passed in marker's position.
+          origin: origin,
+          // The destination is user entered address.
+          destination: destinationAddress,
+          travelMode: google.maps.TravelMode[mode]
+        }, function(response, status) {
+          if (status === google.maps.DirectionsStatus.OK) {
+            var directionsDisplay = new google.maps.DirectionsRenderer({
+              map: map,
+              directions: response,
+              draggable: true,
+              polylineOptions: {
+                strokeColor: 'green'
+              }
+            });
+          } else {
+            window.alert('Directions request failed due to ' + status);
+          }
+        });
+      }
 
 //elevation request: https://maps.googleapis.com/maps/api/elevation/json?locations=34.213171,-118.571022&key=AIzaSyAMrVj6I_6cXo7DF5ienNCjvj1seozxvbU
+
 //https://maps.googleapis.com/maps/api/distancematrix/json?origins=4800+el+camino+Real+los+Altos+CA&destinations=2465+Lathem+street+Mountain+View+CA&key=AIzaSyAMrVj6I_6cXo7DF5ienNCjvj1seozxvbU
+
+//https://maps.googleapis.com/maps/api/directions/json?origin=florence,+italy&destination=milan,+italy&waypoints=optimize:true|genova,+italy|bologna,+italy&key=AIzaSyAMrVj6I_6cXo7DF5ienNCjvj1seozxvbU
+//waypoints are not supported for the TRANSIT travel mode.
