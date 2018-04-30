@@ -58,6 +58,11 @@ hr {
   height: 200px;
 }
 
+#places-search,
+#search-within-time-text {
+  width: 84%;
+}
+
 .text {
   font-size: 12px;
 }

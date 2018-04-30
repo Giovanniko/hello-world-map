@@ -5,6 +5,10 @@
 
     //global polygon variable ensures only ONE polygon is drawn
     var polygon = null;
+
+    //create placemarkers array to us in the multiple functions to have control
+    //over the number of places that show.
+    var placeMarkers = [];
  
     function initMap() {
          //Create styles array
@@ -82,6 +86,25 @@
            styles: styles,
            mapTypeControl: false//user cannot change map type to satellite roads terrain etc
        });
+
+       //this autocomplete is for use in the search within time entry box
+       var timeAutocomplete = new google.maps.places.Autocomplete(
+        document.getElementById('search-within-time-text'));
+
+       //this autocomplete is for use in the geocoder entry box
+       var zoomAutocomplete = new google.maps.places.Autocomplete(
+        document.getElementById('zoom-to-area-text'));
+       //bias the boundaries within the map for the zoom to area text
+       zoomAutocomplete.bindTo('bounds', map);
+
+       //create a searchbox in order to execute a places search
+       var searchBox = new google.maps.places.SearchBox(
+        document.getElementById('places-search'));
+
+        //Biast the searchbox to within the bounds of the map
+        searchBox.setBounds(map.getBounds());
+
+
         //better to use a database served up remotely
        var locations = [
        {title: '430 E 72nd St., Manhattan', location: {lat:  40.7671278, lng: -73.9544168}, heading: 207},
@@ -152,7 +175,9 @@
         //map.fitBounds(bounds);moved into showplaces function
 
        document.getElementById('show-places').addEventListener('click', showPlaces);
-       document.getElementById('hide-places').addEventListener('click', hidePlaces);
+       document.getElementById('hide-places').addEventListener('click', function() {
+           hideMarkers(markers);
+       });
         
        document.getElementById('toggle-drawing').addEventListener('click', function() {
            toggleDrawing(drawingManager);
@@ -165,6 +190,16 @@
        document.getElementById('search-within-time').addEventListener('click', function(){
            searchWithinTime();
        });
+
+       //Listen for the event fired when the user selects a predicition from the 
+       //picklist and retrieve more details for that place.
+       searchBox.addListener('places_changed', function() {
+           searchBoxPlaces(this);
+       });
+
+       //listen for the event fired when the user selects a predicition and clicks
+       //'go' more details for that place.
+       document.getElementById('go-places').addEventListener('click', textSearchPlaces);
        
         
         // Add an event listener so that the polygon is captured,  call the
@@ -175,7 +210,7 @@
           // If there is, get rid of it and remove the markers
           if (polygon) {
             polygon.setMap(null);
-            hidePlaces(markers);
+            hideMarkers(markers);
           }
           // Switching the drawing mode to the HAND (i.e., no longer drawing).
           drawingManager.setDrawingMode(null);
@@ -198,7 +233,7 @@
      
     //Populate the infowindow when the marker is clicked
     function populateInfoWindow(marker, infowindow) {
-        //check to make sure the info window is not already open on this marker
+        //check to make sure the infowindow is not already open on this marker
         if (infowindow.marker != marker) {
            //Clear the infowindow content to give the streetview time to load.
            infowindow.setContent('');
@@ -256,7 +291,7 @@
        }
        
        //loops through and hides each marker
-       function hidePlaces() {
+       function hideMarkers(markers) {
            for(var i = 0; i < markers.length; i++) {
                markers[i].setMap(null);
            }
@@ -337,7 +372,7 @@
         if (address == '') {
           window.alert('You must enter an address.');
         } else {
-          hidePlaces();
+          hideMarkers(markers);
           // Use the distance matrix service to calculate the duration of the
           // routes between all our markers, and the destination address entered
           // by the user. Then put all the origins into an origin matrix.
@@ -418,7 +453,7 @@
       // of the markers within the calculated distance. This will display the route
       // on the map.
       function displayDirections(origin) {
-        hidePlaces();
+        hideMarkers(markers);
         var directionsService = new google.maps.DirectionsService;
         // Get the destination address from the user entered value.
         var destinationAddress =
@@ -446,6 +481,123 @@
           }
         });
       }
+      // This function fires when the user selects a searchbox picklist item.
+      // It will do a nearby search using the selected query string or place.
+      function searchBoxPlaces(searchBox) {
+        hideMarkers(placeMarkers);
+        var places = searchBox.getPlaces();
+        if (places.length == 0) {
+          window.alert('We did not find any places matching that search!');
+        } else {
+        // For each place, get the icon, name and location.
+          createMarkersForPlaces(places);
+        }
+      }
+
+      //this function fires when the user selects "go" on the places search.
+      //it will do a nearby search using the entered query string or place.
+      function textSearchPlaces() {
+          var bounds = map.getBounds();
+          hideMarkers(placeMarkers);
+          var placesService = new google.maps.places.PlacesService(map);
+          placesService.textSearch({
+              query: document.getElementById('places-search').value,
+              bounds: bounds
+          }, function(results, status) {
+              if (status == google.maps.places.PlacesServiceStatus.OK) {
+                  createMarkersForPlaces(results);
+              }
+             });
+      }
+
+      //this function creates markers for each place found in either places search
+      function createMarkersForPlaces(places) {
+          var bounds = new google.maps.LatLngBounds();
+          for (var i = 0; i < places.length; i++) {
+              var place = places[i];
+              var icon = {
+                  url: place.icon,
+                  size: new google.maps.Size(35, 35),
+                  origin: new google.maps.Point(0, 0),
+                  anchor: new google.maps.Point(15, 34),
+                  scaledSize: new google.maps.Size(25, 25)
+              };
+
+              //create a marker for each place.
+              var marker = new google.maps.Marker({
+                  map: map,
+                  icon: icon,
+                  title: place.name,
+                  position: place.geometry.location,
+                  id: place.place_id
+              });
+
+              // Create a single infowindow to be used with the place details information
+              // so that only one is open at once.
+              var placeInfoWindow = new google.maps.InfoWindow();
+              // If a marker is clicked, do a place details search on it in the next function.
+              marker.addListener('click', function() {
+                if (placeInfoWindow.marker == this) {
+                  console.log("This infowindow already is on this marker!");
+                } else {
+                  getPlacesDetails(this, placeInfoWindow);
+                }
+              });
+              placeMarkers.push(marker);
+                  if (place.geometry.viewport) {
+                    //only geocodes have viewport
+                    bounds.union(place.geometry.viewport);
+                  } else {
+                      bounds.extend(place.geometry.location);
+                  }
+          }
+       map.fitBounds(bounds);
+      }
+
+      function getPlacesDetails(marker, infowindow) {
+      var service = new google.maps.places.PlacesService(map);
+      service.getDetails({
+        placeId: marker.id
+      }, function(place, status) {
+        if (status === google.maps.places.PlacesServiceStatus.OK) {
+          // Set the marker property on this infowindow so it isn't created again.
+          infowindow.marker = marker;
+          var innerHTML = '<div>';
+          if (place.name) {
+            innerHTML += '<strong>' + place.name + '</strong>';
+          }
+          if (place.formatted_address) {
+            innerHTML += '<br>' + place.formatted_address;
+          }
+          if (place.formatted_phone_number) {
+            innerHTML += '<br>' + place.formatted_phone_number;
+          }
+          if (place.opening_hours) {
+            innerHTML += '<br><br><strong>Hours:</strong><br>' +
+                place.opening_hours.weekday_text[0] + '<br>' +
+                place.opening_hours.weekday_text[1] + '<br>' +
+                place.opening_hours.weekday_text[2] + '<br>' +
+                place.opening_hours.weekday_text[3] + '<br>' +
+                place.opening_hours.weekday_text[4] + '<br>' +
+                place.opening_hours.weekday_text[5] + '<br>' +
+                place.opening_hours.weekday_text[6];
+          }
+          if (place.photos) {
+            innerHTML += '<br><br><img src="' + place.photos[0].getUrl(
+                {maxHeight: 100, maxWidth: 200}) + '">';
+          }
+          innerHTML += '</div>';
+          infowindow.setContent(innerHTML);
+          infowindow.open(map, marker);
+          // Make sure the marker property is cleared if the infowindow is closed.
+          infowindow.addListener('closeclick', function() {
+            infowindow.marker = null;
+          });
+        }
+      });
+    }
+
+    
 
 //elevation request: https://maps.googleapis.com/maps/api/elevation/json?locations=34.213171,-118.571022&key=AIzaSyAMrVj6I_6cXo7DF5ienNCjvj1seozxvbU
 
@@ -453,3 +605,11 @@
 
 //https://maps.googleapis.com/maps/api/directions/json?origin=florence,+italy&destination=milan,+italy&waypoints=optimize:true|genova,+italy|bologna,+italy&key=AIzaSyAMrVj6I_6cXo7DF5ienNCjvj1seozxvbU
 //waypoints are not supported for the TRANSIT travel mode.
+
+//https://maps.googleapis.com/maps/api/place/textsearch/json?query=%22pizzeria+la+cuccuma%22&key=AIzaSyAMrVj6I_6cXo7DF5ienNCjvj1seozxvbU
+
+//https://maps.googleapis.com/maps/api/place/details/json?placeid=ChIJOSyPwPDGhkcRV5d-RP49H-w&key=AIzaSyAMrVj6I_6cXo7DF5ienNCjvj1seozxvbU
+
+//https://maps.googleapis.com/maps/api/timezone/json?location=34.213171,-118.571022&timestamp=133176000&key=AIzaSyAMrVj6I_6cXo7DF5ienNCjvj1seozxvbU
+
+//https://maps.googleapis.com/maps/api/timezone/json?location=51.5073509,-0.1277582999&timestamp=1459527992&key=AIzaSyAMrVj6I_6cXo7DF5ienNCjvj1seozxvbU
